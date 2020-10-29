@@ -31,5 +31,5 @@ sidechain | controle de volume que se baiseia em outro audio como parametro, no 
 - Novas bibliotecas
 - Alguma coisa que me vier a cabeca
 ---
-***(A pasta output é onde estara os audios gerados, a pasta precisa existir.)***
----
+**(A pasta output é onde estara os audios gerados, a pasta precisa existir.)**
+
