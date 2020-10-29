@@ -9,7 +9,7 @@
 - Carregamento das bibliotecas "rom" e "pat"
 - Randomização dos parametros de escolha
 - Criacao de "novos" samples baseados nos existestes
-- Criacao dew novos padroes randomicos.
+- Criacao de novos padroes randomicos.
 - Sequencimanto
 - 8 Efeito de audio
 - Audio final em ".wav".
