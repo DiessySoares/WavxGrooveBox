@@ -11,7 +11,7 @@
 - Criacao de "novos" samples baseados nos existestes
 - Criacao de novos padroes randomicos.
 - Sequenciamento
-- 8 Efeito de audio
+- 8 Efeitos de audio.
 - Audio final em ".wav".
 
 **Efeitos:**
