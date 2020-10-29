@@ -10,7 +10,7 @@
 - Randomização dos parametros de escolha
 - Criacao de "novos" samples baseados nos existestes
 - Criacao de novos padroes randomicos.
-- Sequencimanto
+- Sequenciamento
 - 8 Efeito de audio
 - Audio final em ".wav".
 
