@@ -1,10 +1,10 @@
 # WavxGrooveBox
  Drum Machine randomica feita em C.
- 
+
 ## O que falta:
 - Parametrização geral para controlar o comportamento (provavelmente por meio de argumentos).
 - Interface simples baseada em texto.
- 
+
 ## O que ja esta implementado:
 - Carregamento das bibliotecas "rom" e "pat"
 - Randomização dos parametros de escolha
@@ -30,3 +30,6 @@ sidechain | controle de volume que se baiseia em outro audio como parametro, no 
 - *Aphex Twin* mode
 - Novas bibliotecas
 - Alguma coisa que me vier a cabeca
+---
+***(A pasta output é onde estara os audios gerados, a pasta precisa existir.)***
+---
