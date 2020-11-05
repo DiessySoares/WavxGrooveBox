@@ -12,6 +12,7 @@
 - Sequenciamento
 - 8 Efeitos de audio.
 - Audio final em ".wav".
+- Interface simples (nao testada totalmente)
 
 **Efeitos:**
 Nome | Descricao 
