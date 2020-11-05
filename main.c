@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdbool.h>
 #include <limits.h>
 #include <assert.h>
@@ -93,8 +94,8 @@ typedef struct {
 }lib;
 
 typedef struct {
-    short  			ra_hash;
-    short 			ra_bpm;
+    int  			ra_hash;
+    unsigned char 	ra_bpm;
     short 			ra_totalof_inter;
     int 			ra_sample_rate;
     short  			ra_blck_size;
@@ -104,6 +105,19 @@ typedef struct {
     char 			ra_path_pattern[128];
     char 			ra_path_rom[128];
 }runnigAt;
+
+typedef struct {
+    int 			fx_amp;
+    int 			fx_pitch;
+    int 			fx_flanger_time;
+    int 			fx_flanger_amount;
+    int 			fx_lowpass_amount;
+    int 			fx_lowpass_passes;
+    int 			fx_bitcrusher_amount;
+    int 			fx_distortion_treshold;
+    int 			fx_delay_voices;
+    int 			fx_delay_time;
+}sfx;
 
 //======================================================================
 //
@@ -132,8 +146,8 @@ typedef struct {
  	(_mcrMIN + _mcrRAND % (_mcrMAX - _mcrMIN))
 
 // booleano random
-#define BOOLRAND(_mcrRAND)\
-	(_mcrRAND % 2)
+#define BOOLRAND()\
+	(rand() % 2)
 
 // booleano random
 #define PERCBOOLRAND(_mcrPERC, _mcrRAND)\
@@ -244,8 +258,8 @@ void write_wav(char * filename, unsigned long num_samples, short int * data, int
 //======================================================================
 
 
-short amp(short value, float time) {
-    return (short) value * time;
+short amp(short value, float amount) {
+    return (short) value * amount;
 }
 
 void pitch(short * buffer, int size, float pitch){
@@ -310,10 +324,10 @@ void lowpass(short * buffer, int buffer_length, int filter_amount, int pases){
     }
 }
 
-void decimator(short * buffer, int buffer_length, int filter_amount){
+void bitcrusher(short * buffer, int buffer_length, int amount){
     short holder = buffer[0];
     for(int i = 1;i < buffer_length;i++) {
-        if(i % filter_amount == 0)
+        if(i % amount == 0)
             holder = buffer[i];
         buffer[i] =  holder;
     }
@@ -340,6 +354,38 @@ void delay(runnigAt * cfg, short * buffer, int buffer_length, short voices, int 
     }
 }
 
+void glitch(runnigAt * cfg, short * buffer, int buffer_length){
+    short * cpy = malloc(sizeof(short) * buffer_length);
+    NULLCHK(cpy, ERR_MEM, free(buffer));
+
+    MEMCPY(cpy, buffer, buffer_length);
+
+    int beat = (int)(GET_SMPBEAT(cfg->ra_bpm, cfg->ra_sample_rate));
+
+    int base = beat, index = 0, sector;
+
+    for(int i = 0, j;i < buffer_length;i++) {
+
+    	if(i % beat / 2 == 0 && BOOLRAND()){
+    		sector = BOOLRAND()? beat / 8 : BOOLRAND()? beat : BOOLRAND()? beat / 2 : beat / 16;
+
+    		for(j = 0, index = i;j < sector ;j++) {
+
+    			if(i > buffer_length)
+    				break;
+
+    			if(j < sector / 2)
+    				index = i - sector;
+
+    			buffer[i++] = cpy[index++];
+
+    		}
+    	}
+
+   	}
+
+}
+
 void sidechain(short * audio, int steps[], int samples_long){
     const double base = 1 / (samples_long / 2);
     double control = 0.1;
@@ -352,6 +398,9 @@ void sidechain(short * audio, int steps[], int samples_long){
         }
     }
 }
+
+
+
 
 //======================================================================
 //
@@ -366,14 +415,14 @@ lib * init_lib() {
     for(int i = 0; i < NUM_CATG; i++) {
         library[i].itens_collection = 0;
         library[i].itens_patterns = 0;
-        
+
         for(int j = 0;j < MAX_ITENS;j++) {
         	library[i].collection[j].arr = NULL;
         	library[i].collection[j].arr_long = 0;
         	library[i].patterns[j].arr = NULL;
         	library[i].patterns[j].arr_long = 0;
         }
-        
+
     }
 
     return library;
@@ -389,6 +438,22 @@ runnigAt  * init_cfg(){
 
     return cfg;
 }
+
+sfx  * init_sfx(){
+    sfx * effects = calloc(sizeof(sfx), 1);
+    NULLCHK(effects, ERR_MEM, NULL);
+
+   	effects->fx_amp = 0;
+    effects->fx_bitcrusher_amount = 0;
+    effects->fx_delay_voices = 0;
+    effects->fx_distortion_treshold = 0;
+    effects->fx_flanger_amount = 0;
+    effects->fx_lowpass_amount = 0;
+    effects->fx_pitch = 0;
+
+    return effects;
+}
+
 
 void load(lib * library, char load_type){
 
@@ -421,7 +486,7 @@ void load(lib * library, char load_type){
             }
 
         } else {
-            
+
             if(smp_bufsize > 0 && load_type == 'r'? (smp_bufsize < MAX_SAMPLES) : (smp_bufsize < MAX_PATTERNS)){
                 switch(load_type) {
                     case 'r':
@@ -431,7 +496,7 @@ void load(lib * library, char load_type){
 
                         MEMCPY(library[audtp_indx].collection[library[audtp_indx].itens_collection].arr, buffer, smp_bufsize);
                         library[audtp_indx].collection[library[audtp_indx].itens_collection++].arr_long = smp_bufsize;
-                        
+
 
                     break;
                     case 'p':
@@ -445,25 +510,23 @@ void load(lib * library, char load_type){
                     break;
                 }
             }
-             
+
             smp_bufsize = 0;
         }
     }
 }
 
 bool sample_sequencer(lib * library, short sample_id, short pattern_id, short * buffer, int buffer_length, float volume, int steps[]) {
-    int watch = 0;
 
     if(library != NULL && library->itens_patterns > 0 && library->itens_collection > 0) {
         if (pattern_id <= library->itens_patterns  && sample_id <= library->itens_collection){
 
-            for (int i = 0; i < library->patterns[pattern_id].arr_long; i++) {
+            for (int i = 0 ; i < library->patterns[pattern_id].arr_long; i++) {
 
-                for (int j = 0; j < library->collection[sample_id].arr_long; j++) {
+                for (int j = 0, watch; j < library->collection[sample_id].arr_long; j++) {
 
                     watch = steps[library->patterns[pattern_id].arr[i]] + j;
 
-                    
                     if (watch < buffer_length)
                         buffer[watch] += amp(library->collection[sample_id].arr[j], volume);
 
@@ -474,11 +537,17 @@ bool sample_sequencer(lib * library, short sample_id, short pattern_id, short * 
     return false;
 }
 
-void initWaveXGroove(runnigAt * cfg, lib *library) {
+void initWaveXGroove(runnigAt * cfg, lib *library, bool changed[]) {
     cfg->ra_totalof_inter = 0;
-    cfg->ra_bpm 		= RANGE_RAND(110, 130, rand());
+
+    if(!changed[1])
+        cfg->ra_bpm 		= RANGE_RAND(110, 130, rand());
+
     cfg->ra_blck_size 	= 8;
-    cfg->ra_sample_rate = SAMPLE_RATE;
+
+    if(!changed[0])
+        cfg->ra_sample_rate = SAMPLE_RATE;
+
     cfg->ra_qnt_type[0] = 1;
     cfg->ra_qnt_type[1] = rand() % 2;
     cfg->ra_qnt_type[2] = rand() % 2;
@@ -499,10 +568,91 @@ void initWaveXGroove(runnigAt * cfg, lib *library) {
     }
 }
 
+/*
+ *                         case 1:
+                            effects->fx_amp = change("0 = inaudivel : 10 = volume maximo\n\nNovo volume:");
+                        break;
+
+                        case 2:
+                           effects->fx_amp = change("-12 = menos uma oitava : 0 = Tom normal : 12 = mais uma oitava\n\nNovo pitch:");
+                        break;
+
+                        case 3:
+                            effects->fx_flanger_time = change("0 = nenhuma difereca de tempo : 1000 = difereca de tempo maxima\n\nNovo tempo:");
+                            effects->fx_flanger_amount = change("0 = nenhum efeito : 10 = efeito maximo\n\nNovo valor:");
+                        break;
+
+                        case 4:
+                            effects->fx_lowpass_passes = change("0 = uma escrita : 8 = maximas reescritas\n\nNovo tempo:");
+                            effects->fx_lowpass_amount = change("0 = nenhum efeito : 128 = efeito maximo\n\nNovo valor:");
+                        break;
+
+                        case 5:
+                            effects->fx_bitcrusher_amount = change("0 =  nenhum efeito : 128 = efeito maximo\n\nNovo valor:");
+                        break;
+
+                        case 6:
+                            effects->fx_distortion_treshold = change("0 =  nenhum efeito : 128 = efeito maximo\n\nNovo valor:");
+                        break;
+
+                        case 7:
+                        	effects->fx_delay_voices = change("0 = nenhum efeito : 10 = 10 repeticoes\n\nNova quantidade de repeticoes:");
+                            effects->fx_delay_time = change("0 = ampliacao de volume : 10 = efeito maximo flanger\n\nNovo valor:");
+ */
+
+
+
+
+void effects_process(runnigAt * cfg, short * buffer, int buffer_length, sfx * effects) {
+
+    if(effects->fx_amp > -1) {                   // VOLUME
+        for (int i = 0; i < buffer_length; i++)
+            amp(buffer[i], effects->fx_amp <= 10 ? effects->fx_amp * 0.10f : 10);
+    }
+
+    if(effects->fx_bitcrusher_amount > 0) {
+        effects->fx_bitcrusher_amount = effects->fx_bitcrusher_amount <= 128 ? effects->fx_bitcrusher_amount : 128;
+        bitcrusher(buffer, buffer_length, effects->fx_bitcrusher_amount);
+    }
+
+    if(effects->fx_flanger_amount > 0) {
+        effects->fx_flanger_time =
+                effects->fx_flanger_time > 0 && effects->fx_flanger_time <= 1000 ? effects->fx_flanger_time : 0;
+        effects->fx_flanger_amount = effects->fx_flanger_amount <= 10 ? effects->fx_flanger_amount : 10;
+        flanger(buffer, buffer_length, effects->fx_flanger_time, effects->fx_flanger_amount * 8);
+    }
+
+    if(effects->fx_lowpass_amount > 0) {
+        effects->fx_lowpass_passes =
+                effects->fx_lowpass_passes > 0 && effects->fx_lowpass_passes <= 10 ? effects->fx_lowpass_passes : 0;
+        effects->fx_lowpass_amount = effects->fx_lowpass_amount <= 128 ? effects->fx_lowpass_amount : 128;
+        lowpass(buffer, buffer_length, effects->fx_lowpass_passes, effects->fx_lowpass_amount);
+    }
+
+    if(effects->fx_distortion_treshold > 0) {
+        effects->fx_distortion_treshold =
+                effects->fx_distortion_treshold <= 128 ? effects->fx_distortion_treshold : 128;
+        effects->fx_distortion_treshold = SHRT_MAX - effects->fx_lowpass_passes * 250;
+        distortion(buffer, buffer_length, (short) effects->fx_distortion_treshold);
+    }
+
+    if(effects->fx_delay_voices > 0) {
+        effects->fx_delay_voices = effects->fx_delay_voices <= 10 ? effects->fx_delay_voices : 10;
+        effects->fx_delay_time = effects->fx_delay_time <= 10 ? effects->fx_delay_time : 10;
+        delay(cfg, buffer, buffer_length, (short) effects->fx_delay_voices, effects->fx_delay_time);
+    }
+    if(effects->fx_pitch != 0) {
+        effects->fx_pitch = effects->fx_pitch <= -12 ? 12 : effects->fx_pitch <= 12 ? effects->fx_pitch : 12;
+        pitch(buffer, buffer_length, (float) effects->fx_pitch * 0.0833333F);
+    }
+
+}
+
+
 #define volume 0.25
 
-bool render(runnigAt * cfg, lib * library){
-    int steps[64], sum = 0, buffer_length = GET_SMPBEAT(cfg->ra_bpm, 44100) * cfg->ra_blck_size;
+bool render(runnigAt * cfg, lib * library, sfx * effects){
+    int steps[64], sum = 0, buffer_length = GET_SMPBEAT(cfg->ra_bpm, cfg->ra_sample_rate) * cfg->ra_blck_size;
 
     short * buffer = calloc(sizeof(short), buffer_length);
     NULLCHK(buffer, ERR_MEM, free(library));
@@ -522,9 +672,11 @@ bool render(runnigAt * cfg, lib * library){
 
     char name[STR_SIZE];
 
+    effects_process(cfg, buffer, buffer_length, effects);
+
     sprintf(name, ".\\output\\%d.wav", cfg->ra_hash);
 
-    write_wav(name, buffer_length , buffer, 44100);
+    write_wav(name, buffer_length , buffer, cfg->ra_sample_rate);
 
     return true;
 }
@@ -604,9 +756,168 @@ void insert_rand_pattern(lib * library, int qnt){
     }
 }
 
+int change(char msg[]){
+	int value;
+	system("cls || clear");
+	printf("%s", msg);
+	scanf("%d", &value);
+	return value;
+}
+
+int menu_TUI(int hash){
+	int opc = 0;
+	system("cls || clear");
+	printf("--------------------------------------------------------------\n");
+	printf("\t\t\tWavxGrooveBox\n");
+	printf("\t\t\thash:%d\n", hash);
+	printf("--------------------------------------------------------------\n");
+    printf("<1> Gerar\n");
+    printf("<2> Alterar hash\n");
+    printf("<3> Alterar randomicamente a hash\n");
+    printf("<4> Mudar configuracoes\n");
+    printf("<5> Mudar configuracoes de efeitos\n");
+    printf("<6> Sair\n>");
+	scanf("%d", &opc);
+    return opc;
+}
+
+int opc_TUI(int hash){
+	int opc = 0;
+	system("cls || clear");
+	printf("--------------------------------------------------------------\n");
+	printf("\t\tWavxGrooveBox::Configuracao\n");
+	printf("\t\t\thash:%d\n", hash);
+	printf("--------------------------------------------------------------\n");
+    printf("<1> Mudar sample rate\n");
+    printf("<2> Mudar batidas por minuto\n");
+    printf("<3> Sair das configuracoes\n>");
+	scanf("%d", &opc);
+    return opc;
+}
+
+int sfx_TUI(int hash){
+	int opc = 0;
+	system("cls || clear");
+	printf("--------------------------------------------------------------\n");
+	printf("\t\t   WavxGrooveBox::Efeitos\n");
+	printf("\t\t\thash:%d\n", hash);
+	printf("--------------------------------------------------------------\n");
+    printf("<1> Volume\n");
+    printf("<2> Pitch\n");
+    printf("<3> Flanger\n");
+    printf("<4> Lowpass\n");
+    printf("<5> Bitcrusher\n");
+    printf("<6> Distortion\n");
+    printf("<7> Delay\n");
+    printf("<8> Sair de efeitos\n>");
+	scanf("%d", &opc);
+    return opc;
+}
+
+
+void reestruct(runnigAt * cfg, lib * library, bool changed[]){
+	insert_rand_pattern(library, 5);
+    insert_rand_morph_sample(library, 20);
+    initWaveXGroove(cfg, library, changed);
+}
+
+void main_process(runnigAt * cfg, lib * library, sfx * effects){
+
+    bool loop_ctrl[3], changed[2] = {false, false};
+
+	loop_ctrl[0] = true;
+	while(loop_ctrl[0]){
+		switch(menu_TUI(cfg->ra_hash)){
+			case 1:
+                reestruct(cfg, library, changed);
+				render(cfg, library, effects);
+			break;
+			case 2:
+                cfg->ra_hash = change("Nova hash:");
+                srand(cfg->ra_hash);
+			break;
+			case 3:
+				cfg->ra_hash = rand() % INT_MAX;
+                srand(cfg->ra_hash);
+			break;
+			case 4:
+                loop_ctrl[1] = true;
+                while(loop_ctrl[1]) {
+                    switch(opc_TUI(cfg->ra_hash)) {
+                        case 1:
+                            cfg->ra_sample_rate = change("44100 = Padrao\n\nNovo sample rate:");
+                            changed[0] = true;
+                        break;
+
+                        case 2:
+                            cfg->ra_bpm = change("~120 = padrao\n\nNovo bpm:");
+                            changed[1] = true;
+                        break;
+
+                        case 3:
+                            loop_ctrl[1] = false;
+                        break;
+                    }
+                }
+            break;
+			case 5:
+				loop_ctrl[2] = true;
+				while(loop_ctrl[2]) {
+                    switch(sfx_TUI(cfg->ra_hash)) {
+                        case 1:
+                            effects->fx_amp = change("0 = inaudivel : 10 = volume maximo\n\nNovo volume:");
+                        break;
+
+                        case 2:
+                           effects->fx_amp = change("-12 = menos uma oitava : 0 = Tom normal : 12 = mais uma oitava\n\nNovo pitch:");
+                        break;
+
+                        case 3:
+                            effects->fx_flanger_time = change("0 = nenhuma difereca de tempo : 1000 = difereca de tempo maxima\n\nNovo tempo:");
+                            effects->fx_flanger_amount = change("0 = nenhum efeito : 10 = efeito maximo\n\nNovo valor:");
+                        break;
+
+                        case 4:
+                            effects->fx_lowpass_passes = change("0 = uma escrita : 8 = maximas reescritas\n\nNovo tempo:");
+                            effects->fx_lowpass_amount = change("0 = nenhum efeito : 128 = efeito maximo\n\nNovo valor:");
+                        break;
+
+                        case 5:
+                            effects->fx_bitcrusher_amount = change("0 =  nenhum efeito : 128 = efeito maximo\n\nNovo valor:");
+                        break;
+
+                        case 6:
+                            effects->fx_distortion_treshold = change("0 =  nenhum efeito : 128 = efeito maximo\n\nNovo valor:");
+                        break;
+
+                        case 7:
+                        	effects->fx_delay_voices = change("0 = nenhum efeito : 10 = 10 repeticoes\n\nNova quantidade de repeticoes:");
+                            effects->fx_delay_time = change("0 = ampliacao de volume : 10 = efeito maximo flanger\n\nNovo valor:");
+                        break;
+
+                        case 8:
+                            loop_ctrl[2] = false;
+                        break;
+                    }
+                }
+			break;
+			case 6:
+				loop_ctrl[0] = false;
+			break;
+		}
+	}
+ 	free(library);
+    free(cfg);
+    
+	exit(0);
+}
+
 int main() {
+   	sfx	* effects = init_sfx();
+   	NULLCHK(effects, ERR_MEM, NULL);
+
     lib *library = init_lib();
-    NULLCHK(library, ERR_MEM, NULL);
+    NULLCHK(library, ERR_MEM, free(effects));
 
     // Carregando SamplePoints
     load(library, 'r');
@@ -615,16 +926,7 @@ int main() {
     load(library, 'p');
 
     runnigAt *cfg = init_cfg();
-    NULLCHK(cfg, ERR_MEM, free(library));
+    NULLCHK(cfg, ERR_MEM, free(effects);free(library));
 
-    insert_rand_pattern(library, 5);
-
-    insert_rand_morph_sample(library, 20);
-    
-    initWaveXGroove(cfg, library);
-
-    render(cfg, library);
-    
-    free(library);
-    free(cfg);
+    main_process(cfg, library, effects);
 }
