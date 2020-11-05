@@ -2,8 +2,7 @@
  Drum Machine randomica feita em C.
 
 ## O que falta:
-- Parametrização geral para controlar o comportamento (provavelmente por meio de argumentos).
-- Interface simples baseada em texto.
+- Opção para escolher o padrao e a biblioteca, as opções apareceram logo no inicio do programa.
 
 ## O que ja esta implementado:
 - Carregamento das bibliotecas "rom" e "pat"
