@@ -2,7 +2,7 @@
  Drum Machine randomica feita em C.
 
 ## O que falta:
-- Algumas coisas, bugs e coisas do tipo
+- Algumas coisas, bugs e coisas do tipo.
 
 ## Modo de uso *(por etapa)*
 - Biblioteca<br />
