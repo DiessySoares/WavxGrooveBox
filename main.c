@@ -6,6 +6,9 @@
 #include <assert.h>
 #include <math.h>
 #include <time.h>
+#include <dirent.h> 
+
+
 
 /*
  *          ==============================
@@ -13,35 +16,7 @@
  *              a2098318
  *          ==============================
  *
- *
- *      O que falta:
- *          - Parametrização geral para controlar o comportamento (provavelmente por meio de argumentos).
- *          - Interface simples baseada em texto.
- *
- *      O que ja esta implementado:
- *          - Carregamento das bibliotecas "rom" e "pat"
- *          - Randomização dos parametros de escolha
- *          - Criacao de "novos" samples baseados nos existestes
- *          - Criacao dew novos padroes randomicos.
- *          - Sequencimanto
- *          - 8 Efeito de audio
- *              Efeitos:
- *                   pitch : controla o tom do sample
- *                   distortion : Amplia o som ate certo limite, causando um efeito de distorcao
- *                   lowpass : filtro que remove frequencias mais altas ou agudas
- *                   flanger : dois audio identicos interpolados com uma variação pequena de tempo, variacao controlada pela funcao cos() que altera a velocidade de reproducao de um dos audios por meio de uma sinewave.
- *                   wow : Pequena alteracao no tempo execução, dando o efeito de toca fitas antigo ou vinyl
- *                   decimator : um efeito que reduz a resolução da waveform, simulando a limitacao que sistemas antigos tinham nativamente
- *                   delay : efeito de repetir parte do som um numero x de vezes, gradativamente mais baixo, junto a um lowpass filter para dar uma sensação de delay de fita
- *                   sidechain : controle de volume que se baiseia em outro audio como parametro, no caso do projeto ele se baiseia no padrao de execucao, diminuido o volume do audio onde outro audio pode ter espaco.
- *          - Audio final em ".wav".
- *
- *
- *      O que pode ou nao existir:
- *          - highpass filter, filtro que retira frequecias baixa ou graves, baseado no cancelamento de fase entre um audio e o mesmo audio com lowpass filter. (nao sei se da certo)
- *          - Aphex Twin mode
- *          - Novas bibliotecas
- *          - Alguma coisa que me vier a cabeca
+ * 			nao deu tempo de corrigir tudo :(
  *
 */
 
@@ -68,6 +43,12 @@
 
 #define DEF_LIBRARY		".\\rom\\analogTechno.rom"
 #define DEFPAT_LIBRARY	".\\pattern\\analogTechno.pat"
+
+#define LIB_FOLDER	".\\rom\\"
+#define PAT_FOLDER	".\\pattern\\"
+
+#define EXT_ROM		".rom"
+#define EXT_PAT		".pat"
 
 #define MAX_SAMPLES		52920
 #define MAX_PATTERNS	64
@@ -102,8 +83,6 @@ typedef struct {
     short 			ra_qnt_type[6];
     unsigned char 	ra_drumkit[6][10];
     unsigned char 	ra_pat_drumkit[6][10];
-    char 			ra_path_pattern[128];
-    char 			ra_path_rom[128];
 }runnigAt;
 
 typedef struct {
@@ -262,26 +241,20 @@ short amp(short value, float amount) {
     return (short) value * amount;
 }
 
-void pitch(short * buffer, int size, float pitch){
+void pitch(short * buffer, int size, float pitch) {
     short * buffer_cpy = malloc(sizeof(short) * size);
-    //CHKPNT(buffer_cpy, "175", NULL);
+    NULLCHK(buffer_cpy, ERR_MEM, free(buffer));
 
     MEMCPY(buffer_cpy, buffer, size);
     float sample = 0;
     for(int i = 0;i < size;i++)
     {
-        if((int)sample > size)
+        if(sample > size)
             break;
         buffer[i] = (buffer_cpy[(size_t)sample]);
         sample += pitch;
     }
 }
-
-/*void saturation(short * buffer, int buffer_length, unsigned char amount){
-    for(int i = 0;i < buffer_length;i++) {
-        buffer[i] = (short) atan(buffer[i] * (amount * 0.0001)) * 15000 ;
-    }
-}*/
 
 void flanger(short * temp, int size, int time, int amount){
     short * cpy = malloc(sizeof(short) * size);
@@ -301,7 +274,7 @@ void flanger(short * temp, int size, int time, int amount){
 
 void wow(short * temp, int size, int amount){
     short * cpy = malloc(sizeof(short) * size);
-    //CHKPNT(cpy, "204", NULL);
+    NULLCHK(cpy, ERR_MEM, free(temp));
 
     MEMCPY(cpy, temp, size);
     float sample = 0;
@@ -341,7 +314,7 @@ void distortion(short * buffer, int buffer_length, short treshold){
 
 void delay(runnigAt * cfg, short * buffer, int buffer_length, short voices, int beat){
     short * voice = calloc(sizeof(short), buffer_length), decay = 0;
-    //CHKPNT(voice, "241", NULL);
+    NULLCHK(voice, ERR_MEM, free(cfg);free(buffer));
 
     beat = (int)(GET_SMPBEAT(cfg->ra_bpm, cfg->ra_sample_rate) / 32) * beat;
     MEMCPY(voice, buffer, buffer_length);
@@ -399,9 +372,6 @@ void sidechain(short * audio, int steps[], int samples_long){
     }
 }
 
-
-
-
 //======================================================================
 //
 //  	f u n c t i o n s
@@ -422,9 +392,7 @@ lib * init_lib() {
         	library[i].patterns[j].arr = NULL;
         	library[i].patterns[j].arr_long = 0;
         }
-
     }
-
     return library;
 }
 
@@ -455,9 +423,9 @@ sfx  * init_sfx(){
 }
 
 
-void load(lib * library, char load_type){
+void load(lib * library, char load_type, const char * path){
 
-    FILE * rom = fopen(load_type == 'r'? DEF_LIBRARY : DEFPAT_LIBRARY, "r");
+    FILE * rom = fopen(path, "r");
     NULLCHK(rom, ERR_FLE, free(library));
 
     int * buffer = calloc(sizeof(int), (load_type == 'r'? MAX_SAMPLES : MAX_PATTERNS));
@@ -568,47 +536,7 @@ void initWaveXGroove(runnigAt * cfg, lib *library, bool changed[]) {
     }
 }
 
-/*
- *                         case 1:
-                            effects->fx_amp = change("0 = inaudivel : 10 = volume maximo\n\nNovo volume:");
-                        break;
-
-                        case 2:
-                           effects->fx_amp = change("-12 = menos uma oitava : 0 = Tom normal : 12 = mais uma oitava\n\nNovo pitch:");
-                        break;
-
-                        case 3:
-                            effects->fx_flanger_time = change("0 = nenhuma difereca de tempo : 1000 = difereca de tempo maxima\n\nNovo tempo:");
-                            effects->fx_flanger_amount = change("0 = nenhum efeito : 10 = efeito maximo\n\nNovo valor:");
-                        break;
-
-                        case 4:
-                            effects->fx_lowpass_passes = change("0 = uma escrita : 8 = maximas reescritas\n\nNovo tempo:");
-                            effects->fx_lowpass_amount = change("0 = nenhum efeito : 128 = efeito maximo\n\nNovo valor:");
-                        break;
-
-                        case 5:
-                            effects->fx_bitcrusher_amount = change("0 =  nenhum efeito : 128 = efeito maximo\n\nNovo valor:");
-                        break;
-
-                        case 6:
-                            effects->fx_distortion_treshold = change("0 =  nenhum efeito : 128 = efeito maximo\n\nNovo valor:");
-                        break;
-
-                        case 7:
-                        	effects->fx_delay_voices = change("0 = nenhum efeito : 10 = 10 repeticoes\n\nNova quantidade de repeticoes:");
-                            effects->fx_delay_time = change("0 = ampliacao de volume : 10 = efeito maximo flanger\n\nNovo valor:");
- */
-
-
-
-
 void effects_process(runnigAt * cfg, short * buffer, int buffer_length, sfx * effects) {
-
-    if(effects->fx_amp > -1) {                   // VOLUME
-        for (int i = 0; i < buffer_length; i++)
-            amp(buffer[i], effects->fx_amp <= 10 ? effects->fx_amp * 0.10f : 10);
-    }
 
     if(effects->fx_bitcrusher_amount > 0) {
         effects->fx_bitcrusher_amount = effects->fx_bitcrusher_amount <= 128 ? effects->fx_bitcrusher_amount : 128;
@@ -638,7 +566,7 @@ void effects_process(runnigAt * cfg, short * buffer, int buffer_length, sfx * ef
 
     if(effects->fx_delay_voices > 0) {
         effects->fx_delay_voices = effects->fx_delay_voices <= 10 ? effects->fx_delay_voices : 10;
-        effects->fx_delay_time = effects->fx_delay_time <= 10 ? effects->fx_delay_time : 10;
+        effects->fx_delay_time = effects->fx_delay_time <= 16 ? effects->fx_delay_time : 16;
         delay(cfg, buffer, buffer_length, (short) effects->fx_delay_voices, effects->fx_delay_time);
     }
     if(effects->fx_pitch != 0) {
@@ -648,12 +576,13 @@ void effects_process(runnigAt * cfg, short * buffer, int buffer_length, sfx * ef
 
 }
 
-
-#define volume 0.25
+#define BASE_VOLUME 0.25
 
 bool render(runnigAt * cfg, lib * library, sfx * effects){
     int steps[64], sum = 0, buffer_length = GET_SMPBEAT(cfg->ra_bpm, cfg->ra_sample_rate) * cfg->ra_blck_size;
-
+    
+    float volume = effects->fx_amp == 0? BASE_VOLUME : effects->fx_amp * 0.10f;
+	
     short * buffer = calloc(sizeof(short), buffer_length);
     NULLCHK(buffer, ERR_MEM, free(library));
 
@@ -827,18 +756,18 @@ void main_process(runnigAt * cfg, lib * library, sfx * effects){
 
 	loop_ctrl[0] = true;
 	while(loop_ctrl[0]){
+		
 		switch(menu_TUI(cfg->ra_hash)){
 			case 1:
+				srand(cfg->ra_hash);
                 reestruct(cfg, library, changed);
 				render(cfg, library, effects);
 			break;
 			case 2:
                 cfg->ra_hash = change("Nova hash:");
-                srand(cfg->ra_hash);
 			break;
 			case 3:
 				cfg->ra_hash = rand() % INT_MAX;
-                srand(cfg->ra_hash);
 			break;
 			case 4:
                 loop_ctrl[1] = true;
@@ -869,7 +798,7 @@ void main_process(runnigAt * cfg, lib * library, sfx * effects){
                         break;
 
                         case 2:
-                           effects->fx_amp = change("-12 = menos uma oitava : 0 = Tom normal : 12 = mais uma oitava\n\nNovo pitch:");
+                           effects->fx_pitch = change("-12 = menos uma oitava : 0 = Tom normal : 12 = mais uma oitava\n\nNovo pitch:");
                         break;
 
                         case 3:
@@ -878,7 +807,7 @@ void main_process(runnigAt * cfg, lib * library, sfx * effects){
                         break;
 
                         case 4:
-                            effects->fx_lowpass_passes = change("0 = uma escrita : 8 = maximas reescritas\n\nNovo tempo:");
+                            effects->fx_lowpass_passes = change("0 = uma escrita : 8 = maximas reescritas\n\nPasses:");
                             effects->fx_lowpass_amount = change("0 = nenhum efeito : 128 = efeito maximo\n\nNovo valor:");
                         break;
 
@@ -892,7 +821,7 @@ void main_process(runnigAt * cfg, lib * library, sfx * effects){
 
                         case 7:
                         	effects->fx_delay_voices = change("0 = nenhum efeito : 10 = 10 repeticoes\n\nNova quantidade de repeticoes:");
-                            effects->fx_delay_time = change("0 = ampliacao de volume : 10 = efeito maximo flanger\n\nNovo valor:");
+                            effects->fx_delay_time = change("0 = ampliacao de volume : 16 = maximo delay\n\nNovo valor:");
                         break;
 
                         case 8:
@@ -912,7 +841,68 @@ void main_process(runnigAt * cfg, lib * library, sfx * effects){
 	exit(0);
 }
 
+bool verif_extension(char *path, char *ext){
+	int ext_length = strlen(ext), path_length = strlen(path);
+	
+	if(path_length < ext_length)
+		return false;
+		
+	for(int i = 0; i < ext_length; i++)
+		if(path[(path_length - 1) - i] != ext[(ext_length - 1) - i])
+			return false;
+			
+	return true;
+}
+
+const char * scan_folder(char type){
+	int number_files = 0, chose = 0;
+	char files[MAX_ITENS][STR_SIZE];
+	
+	DIR *d;
+	
+	struct dirent *dir;
+	d = opendir(type == 'r'? LIB_FOLDER : PAT_FOLDER);
+	
+	if (d) {
+		while((dir = readdir(d)) != NULL){
+			if(verif_extension(dir->d_name, type == 'r'? EXT_ROM : EXT_PAT)){
+				strcpy(files[number_files], type == 'r'? LIB_FOLDER : PAT_FOLDER);
+				strcat(files[number_files], dir->d_name);
+				number_files++;
+			}
+		}
+		closedir(d);
+	}
+	
+	if(number_files < 1) {
+		printf("Nao ha %s disponiveis\n",  type == 'r'? "Bibliotecas" : "Padroes");
+		exit(0);
+	}
+
+	do {
+		system("cls || clear");
+		printf("--------------------------------------------------------------\n");
+		printf("\t\t\t%s\n", type == 'r'? "Biblioteca" : "Padrao");
+		printf("--------------------------------------------------------------\n");
+		for(int i = 0; i < number_files;i++)
+			printf("<%d>%s\n", (i + 1), files[i]);
+		printf(">");
+		scanf("%d", &chose);
+	} while(chose > number_files || chose <= 0);
+	
+	const char * response = files[chose - 1];
+	
+	return response;
+}
+
+
+
 int main() {
+	char rom_path[STR_SIZE], pat_path[STR_SIZE];
+	
+	strcpy(rom_path, scan_folder('r'));
+	strcpy(pat_path, scan_folder('p'));
+	
    	sfx	* effects = init_sfx();
    	NULLCHK(effects, ERR_MEM, NULL);
 
@@ -920,10 +910,10 @@ int main() {
     NULLCHK(library, ERR_MEM, free(effects));
 
     // Carregando SamplePoints
-    load(library, 'r');
+    load(library, 'r', rom_path);
 
     // Carregando Padroes
-    load(library, 'p');
+    load(library, 'p', pat_path);
 
     runnigAt *cfg = init_cfg();
     NULLCHK(cfg, ERR_MEM, free(effects);free(library));
