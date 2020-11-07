@@ -5,27 +5,27 @@
 - Algumas coisas, bugs e coisas do tipo
 
 ## Modo de uso *(por etapa)*
-- Biblioteca
-*Arquivo onde ficam os arquivo de audio, cada uma delas tem elementos difererente para diferentres estilos*
-- Padrões
-*Arquivo onde se encontra algunas padrões ritimicos, assim como as bilbliotecas*
+- Biblioteca<br />
+*Arquivo onde ficam os arquivo de audio, cada uma delas tem elementos difererente para diferentres estilos*<br />
+- Padrões<br />
+*Arquivo onde se encontra algunas padrões ritimicos, assim como as bilbliotecas*<br />
 
-**Os padrões e bibliotecas nao precisam ser iguais, podem ser combinados livremente**
+**Os padrões e bibliotecas nao precisam ser iguais, podem ser combinados livremente**<br />
 
-- Gerar
-*Opção que cria arquivo de audio*
+- Gerar<br />
+*Opção que cria arquivo de audio*<br />
 
-- Alterar hash
-*Alterar a hash influencia no resultado final, cada hash da um resultado diferente, e uma hash sempre da um resultado igual (ou era pra ser assim)*
+- Alterar hash<br />
+*Alterar a hash influencia no resultado final, cada hash da um resultado diferente, e uma hash sempre da um resultado igual (ou era pra ser assim)*<br />
 
-- Alterar randomicamente a hash
-*Semelhante a descrição de cima, mas a hash é gerada por uma funcao randomica*
+- Alterar randomicamente a hash<br />
+*Semelhante a descrição de cima, mas a hash é gerada por uma funcao randomica*<br />
 
-- Mudar configuracoes
-*Apresenta algumas configurações basicas para o resultado final*
+- Mudar configuracoes<br />
+*Apresenta algumas configurações basicas para o resultado final*<br />
 
-- Mudar configuracoes de efeitos
-*Uma lista de efeitos que serão aplicados ao resultado final, a descrições deles se apresenta na tabela abaixo*
+- Mudar configuracoes de efeitos<br />
+*Uma lista de efeitos que serão aplicados ao resultado final, a descrições deles se apresenta na tabela abaixo*<br />
 
 **Efeitos:**
 Nome | Descricao 
