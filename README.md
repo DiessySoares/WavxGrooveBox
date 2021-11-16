@@ -45,4 +45,4 @@ decimator | um efeito que reduz a resolução da waveform, simulando a limitacao
 - Alguma coisa que me vier a cabeca
 ---
 **(A pasta output é onde estara os audios gerados, a pasta precisa existir.)**
-
+(trabalho da faculdade)
